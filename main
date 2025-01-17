@@ -1,47 +1,71 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Spyder 5.5.0, Python 3.9 Created on Thu Jan 16 13:24:12 2025
-
+"""
+Created on Thu Jan 16 13:24:12 2025
 @author: harveyfeng1
+""" 
+#Spyder 5.5.0, Python 3.9
+
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
 
-def filter_csv_data(input_file, output_file, y):
+def plot_time_dates(df,x):
+    column_1 = df.iloc[:, 0]  # First column
+    column_4 = df.iloc[:, 3]  # Fourth column
+    # Create a bar chart using the first and fourth columns
+    plt.bar(column_1, column_4, color='blue')
+      
+    # Add labels and title
+    plt.xlabel('Dates with low tide')  # Label for the x-axis
+    #plt.ylabel('Tide')  # Label for the y-axis
+    plt.title('2025 Low Tide ft vs Dates')
+    plt.xticks(column_1[::5],  rotation='vertical')
+    plt.locator_params(axis='x', nbins=x) # number of dates you want to put there to avoid too dense
+    # Show the plot
+    plt.show()
+
+    
+  
+def filter_dates(input_file, output_file, threshold):
     # Read the CSV file into a pandas DataFrame
-    df = pd.read_csv(input_file, delim_whitespace=True)
-    print(df)
+    df = pd.read_csv(input_file, delim_whitespace=True, header=None)
     num_rows, num_columns = df.shape
-
-# Print the result
     print(f"Total rows: {num_rows}")
     print(f"Total columns: {num_columns}")
     
-    # Filter rows where the 4th column (index 3) is less than y
-
-    df.iloc[:, 3] = df.iloc[:, 3].astype(float)    
-    df.iloc[:, 0] = df.iloc[:, 0].str[5:]
-
+    df.iloc[:, 0] = df.iloc[:, 0].str[5:] # remove all colomns after the tide
     print(df)
-    filtered_df = df[df.iloc[:, 3] < y]
-    filtered_df = filtered_df.drop(df.columns[4:], axis=1)
     
-    print (df.iloc[:, 3].min())  # find lowest tide in this time period
-    # Save the filtered DataFrame to a new CSV file
-    filtered_df.to_csv(output_file, index=False)
+    # Keep rows where the 4th column (index 3), the tide < threshold
+    filtered_df = df[df.iloc[:, 3] < threshold]
+    filtered_df = filtered_df.drop(df.columns[4:], axis=1) # modify the date, remove the year
+    print ("lowest tide in 2025 is ", df.iloc[:, 3].min(), "ft") # find the lowest tide
 
-# Example usage:
-a= "/Users/username/Desktop/"
-#modify above code to your folder
+    # show the result
+    return filtered_df
 
-input_file = a+ 'hmb_annual.csv'
-output_file = a +'filtered_data.csv'
-y = -0.6  # Replace with your desired threshold value
 
-filepath = a
+filepath= "/Users/username/Desktop/"     # modify to your file folder name
+
+input_file = filepath + '1.csv' # name the tide csv to 1.csv for this progran to process
+output_file = filepath +'dates_low_tides.csv' #the result file's name
+threshold = -0.6  # Replace with your desired tide level, in ft
+
 print("File path:", filepath)
 if os.access(filepath, os.R_OK):
     print("File is readable")
 else:
     print("File is not readable")
+print ("Only dates with tide < ", threshold , " are left")
+    
+df = filter_dates(input_file, output_file, threshold)
 
-filter_csv_data(input_file, output_file, y)
+    # Save the filtered DataFrame to a new CSV file
+df.to_csv(output_file, index=False) 
+    
+x = 20 # number of bar you want for x axis,otherwise it might be too crowded
+plot_time_dates(df, x)
+
+
+
