@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# Spyder 5.5.0, Python 3.9
+Created on Thu Jan 16 13:24:12 2025
+
+@author: harveyfeng1
+import pandas as pd
+import os
+
+def filter_csv_data(input_file, output_file, y):
+    # Read the CSV file into a pandas DataFrame
+    df = pd.read_csv(input_file, delim_whitespace=True)
+    print(df)
+    num_rows, num_columns = df.shape
+
+# Print the result
+    print(f"Total rows: {num_rows}")
+    print(f"Total columns: {num_columns}")
+    
+    # Filter rows where the 4th column (index 3) is less than y
+
+    df.iloc[:, 3] = df.iloc[:, 3].astype(float)    
+    df.iloc[:, 0] = df.iloc[:, 0].str[5:]
+
+    print(df)
+    filtered_df = df[df.iloc[:, 3] < y]
+    filtered_df = filtered_df.drop(df.columns[4:], axis=1)
+    
+    print (df.iloc[:, 3].min())  # find lowest tide in this time period
+    # Save the filtered DataFrame to a new CSV file
+    filtered_df.to_csv(output_file, index=False)
+
+# Example usage:
+a= "/Users/username/Desktop/"
+#modify above to your folder
+
+input_file = a+ 'hmb_annual.csv'
+output_file = a +'filtered_data.csv'
+y = -0.6  # Replace with your desired threshold value
+
+filepath = a
+print("File path:", filepath)
+if os.access(filepath, os.R_OK):
+    print("File is readable")
+else:
+    print("File is not readable")
+
+filter_csv_data(input_file, output_file, y)
