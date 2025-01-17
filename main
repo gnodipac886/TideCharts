@@ -4,11 +4,53 @@
 Created on Thu Jan 16 13:24:12 2025
 @author: harveyfeng1
 """ 
-#Spyder 5.5.0, Python 3.9
 
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import csv
+
+def find_first_empty_row(filename):
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+
+    for i, line in enumerate(lines, start=1):
+        if not line.strip():  # If the line is empty or contains only whitespace
+            return i  # Return the line number of the first empty row
+
+    return None  # Return None if no empty row is found
+
+
+def remove_first_x_rows(filepath, filename, newfile,x):
+    # Read the entire file
+    with open(filepath +filename, 'r') as file:
+        lines = file.readlines()
+
+    # Skip the first 'x' rows and get the rest of the lines
+    new_lines = lines[x+1:]
+
+    # Write the remaining lines back to the same file or a new file
+    with open(filepath +newfile, 'w') as file:
+        file.writelines(new_lines)
+        
+        
+
+def txt_to_csv(txt_filename, csv_filename, delimiter='\t'):
+    with open(txt_filename, 'r') as txt_file:
+        # Read the contents of the .txt file
+        lines = txt_file.readlines()
+        
+    # Open the .csv file for writing
+    with open(csv_filename, 'w', newline='') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        
+        # Write each line of the .txt file as a row in the .csv file
+        for line in lines:
+            # Split the line into columns by tab and write to CSV
+            csv_writer.writerow(line.strip().split(delimiter))
+
+    print(f"Converted {txt_filename} to {csv_filename}")
+
 
 def plot_time_dates(df,x):
     column_1 = df.iloc[:, 0]  # First column
@@ -16,7 +58,7 @@ def plot_time_dates(df,x):
     # Create a bar chart using the first and fourth columns
     plt.bar(column_1, column_4, color='blue')
       
-    # Add labels and title
+      # Add labels and title
     plt.xlabel('Dates with low tide')  # Label for the x-axis
     #plt.ylabel('Tide')  # Label for the y-axis
     plt.title('2025 Low Tide ft vs Dates')
@@ -24,12 +66,11 @@ def plot_time_dates(df,x):
     plt.locator_params(axis='x', nbins=x) # number of dates you want to put there to avoid too dense
     # Show the plot
     plt.show()
-
     
   
 def filter_dates(input_file, output_file, threshold):
     # Read the CSV file into a pandas DataFrame
-    df = pd.read_csv(input_file, delim_whitespace=True, header=None)
+    df = pd.read_csv(input_file, header=None)
     num_rows, num_columns = df.shape
     print(f"Total rows: {num_rows}")
     print(f"Total columns: {num_columns}")
@@ -46,10 +87,31 @@ def filter_dates(input_file, output_file, threshold):
     return filtered_df
 
 
-filepath= "/Users/username/Desktop/"     # modify to your file folder name
+    
 
-input_file = filepath + '1.csv' # name the tide csv to 1.csv for this progran to process
-output_file = filepath +'dates_low_tides.csv' #the result file's name
+filepath  = "/Users/ your path here /Desktop/" # modify to your file path
+
+# save the file downloaded from NOAA to old_1.txt
+filename = 'old_1.txt' 
+
+txt_filename = '1.txt'
+csv_filename = '1.csv'
+
+first_empty_row = find_first_empty_row(filepath+filename)
+remove_first_x_rows(filepath,filename, txt_filename ,first_empty_row)
+print(f"First {first_empty_row } rows removed from {filename}.")
+
+
+if first_empty_row:
+    print(f"The first empty row is: {first_empty_row}")
+else:
+    print("No empty rows found.")
+
+
+txt_to_csv(filepath+txt_filename, filepath+csv_filename, delimiter='\t')
+
+input_file = filepath + '1.csv' # name the tide csv to 1.csv
+output_file = filepath +'dates_low_tides.csv'
 threshold = -0.6  # Replace with your desired tide level, in ft
 
 print("File path:", filepath)
@@ -66,6 +128,9 @@ df.to_csv(output_file, index=False)
     
 x = 20 # number of bar you want for x axis,otherwise it might be too crowded
 plot_time_dates(df, x)
+
+
+
 
 
 
