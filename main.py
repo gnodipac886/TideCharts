@@ -92,14 +92,14 @@ station_info = {
 		'lat': 32.73, 
 		'lon': -117.13
 	},
-	'Dumbarton Pier': {
+	'DumbartonPier': {
 		'station_id': '9414509',
 		'station': 'Dumbarton Pier', 
 		'area': 'Bay Area',
 		'lat': 37.808, 
 		'lon': -122.43
 	},
-	'Bolinas Lagoon': {
+	'BolinasLagoon': {
 		'station_id': '9414958',
 		'station': 'Bolinas Lagoon', 
 		'area': 'Marin',
@@ -415,7 +415,7 @@ Label: {row['label']}
 	# fig.show()
 	fig.write_html(f"tideplot_{year}_{station_name.lower()}.html")
 
-if __name__ == '__main__':
+def main():
 	# setup meta vars for url
 	start_date = f'{year}0101'
 	end_date = f'{year}1231'
@@ -480,3 +480,14 @@ if __name__ == '__main__':
 	df.to_csv(output_file, index=False) 
 	
 	plotly_plot(df)
+ 
+if __name__ == '__main__':
+	# main()
+ 
+	# do all the plots
+	for key, value in station_info.items():
+		station_name = key
+		# station_name = 'HalfMoonBay'
+		station_id = station_info[station_name]['station_id']
+		station_area = station_info[station_name]['area']
+		main()
