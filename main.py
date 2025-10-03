@@ -35,6 +35,97 @@ station_info = {
 		'area': 'Bay Area',
 		'lat': 37.429, 
 		'lon': -122.47
+	},
+	'LosAngeles': {
+		'station_id': '9410660',
+		'station': 'Los Angeles', 
+		'area': 'Los Angeles',
+		'lat': 34.052, 
+		'lon': -118.243
+	},
+	'LongBeach': {
+		'station_id': '9410686',
+		'station': 'Long Beach', 
+		'area': 'Los Angeles',
+		'lat': 33.77, 
+		'lon': -118.19
+	},
+	'CabrilloBeach': {
+		'station_id': '9410650',
+		'station': 'Cabrillo', 
+		'area': 'Los Angeles',
+		'lat': 34.42, 
+		'lon': -120.41
+	},
+	'RedondoBeach': {
+		'station_id': '9410738',
+		'station': 'Redondo Beach', 
+		'area': 'Los Angeles',
+		'lat': 33.848, 
+		'lon': -118.41
+	},
+	'CoyotePointArdvark': {
+		'station_id': '9414449',
+		'station': 'Coyote Point Ardvark', 
+		'area': 'Bay Area',
+		'lat': 32.848, 
+		'lon': -117.27
+	},
+	'SantaCruz': {
+		'station_id': '9413745',
+		'station': 'Santa Cruz', 
+		'area': 'Santa Cruz',
+		'lat': 36.974, 
+		'lon': -122.13
+	},
+	'OceanBeach': {
+		'station_id': '9414275',
+		'station': 'Ocean Beach', 
+		'area': 'San Francisco',
+		'lat': 33.15, 
+		'lon': -117.37
+	},
+	'GoldStreetBridge': {
+		'station_id': '9414551',
+		'station': 'Upper Guadalupe Slough', 
+		'area': 'Bay Area',
+		'lat': 32.73, 
+		'lon': -117.13
+	},
+	'Dumbarton Pier': {
+		'station_id': '9414509',
+		'station': 'Dumbarton Pier', 
+		'area': 'Bay Area',
+		'lat': 37.808, 
+		'lon': -122.43
+	},
+	'Bolinas Lagoon': {
+		'station_id': '9414958',
+		'station': 'Bolinas Lagoon', 
+		'area': 'Marin',
+		'lat': 37.908, 
+		'lon': -122.69
+	},
+	'PointReyes': {
+		'station_id': '9415020',
+		'station': 'Point Reyes', 
+		'area': 'Marin',
+		'lat': 38.048, 
+		'lon': -122.68
+	},
+	'Inverness': {
+		'station_id': '9415228',
+		'station': 'Inverness', 
+		'area': 'Tomales Bay',
+		'lat': 38.058, 
+		'lon': -122.81
+	},
+	'BodegaBay': {
+		'station_id': '9415625',
+		'station': 'Bodega Bay', 
+		'area': 'Bodega Bay',
+		'lat': 38.338, 
+		'lon': -122.91
 	}
 }
 station_name = 'PugetSound'

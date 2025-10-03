@@ -1,7 +1,10 @@
-# tidepool
+# Tide Chart Predictions
 
-
-# https://tidesandcurrents.noaa.gov/tide_predictions.html
-# download data in txt and rename it to old_1.txt
-# move it to desktop filder and modify the code to include the filepath in your computer.
-#run this code, three files will be saved: a new 1.txt with data only, 1.csv is csv equal of 1.txt, dates_low_tides.csv is the final results
+### How to Run:
+- Install requirements via `pip install -r requirements.txt`
+- Select your proper station on NOAA [here](https://tidesandcurrents.noaa.gov/stations.html)
+- Add a dictionary entry in `main.py`
+- Modify the `station_name` variable to select your station
+- Modify `year` variable
+- Run `python3 main.py`
+- The output will be a `.html` file in the same directory
