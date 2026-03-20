@@ -19,31 +19,42 @@ SEARCH_PAGE = """<!DOCTYPE html>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root { --bar-height: 0px; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #f5f5f5;
-      display: flex;
-      flex-direction: column;
       height: 100vh;
       overflow: hidden;
+      position: relative;
     }
 
-    /* ── Search section ── */
+    /* ── Search section ──────────────────────────────────────── */
+    /* Starts vertically centered; transitions to top edge */
     #search-section {
-      flex: 1;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
       display: flex;
-      align-items: center;
       justify-content: center;
-      padding: 24px;
-      transition: flex 0s, padding 0.4s ease, background 0.4s ease, box-shadow 0.4s ease;
+      padding: 0 24px;
       z-index: 10;
+      transition:
+        top      1.4s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 1.4s cubic-bezier(0.4, 0, 0.2, 1),
+        padding  1.0s  ease,
+        background 0.8s ease,
+        box-shadow 0.8s ease;
     }
 
     body.has-results #search-section {
-      flex: 0 0 auto;
-      padding: 10px 20px;
+      top: 0;
+      transform: translateY(0);
       background: white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 10px 20px;
     }
 
     /* ── Card ── */
@@ -55,8 +66,12 @@ SEARCH_PAGE = """<!DOCTYPE html>
       width: 100%;
       max-width: 520px;
       text-align: center;
-      transition: padding 0.4s ease, border-radius 0.4s ease,
-                  box-shadow 0.4s ease, max-width 0.4s ease, background 0.4s ease;
+      transition:
+        padding      1.0s ease,
+        border-radius 1.0s ease,
+        box-shadow   1.0s ease,
+        max-width    1.1s ease,
+        background   0.8s ease;
     }
 
     body.has-results .card {
@@ -65,15 +80,19 @@ SEARCH_PAGE = """<!DOCTYPE html>
       box-shadow: none;
       background: transparent;
       max-width: 100%;
+      text-align: left;
     }
 
-    /* ── Card header (title + subtitle) ── */
+    /* ── Title / subtitle ── */
     .card-header {
       overflow: hidden;
-      max-height: 120px;
+      max-height: 140px;
       opacity: 1;
       margin-bottom: 28px;
-      transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.4s ease;
+      transition:
+        max-height  1.0s ease,
+        opacity     0.7s ease,
+        margin      1.0s ease;
     }
 
     body.has-results .card-header {
@@ -99,6 +118,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
       border-radius: 8px;
       outline: none;
       transition: border-color 0.2s;
+      min-width: 0;
     }
     input[type="text"]:focus { border-color: #2d2d2d; }
 
@@ -114,17 +134,21 @@ SEARCH_PAGE = """<!DOCTYPE html>
       transition: background 0.2s;
       white-space: nowrap;
     }
-    button:hover { background: #444; }
+    button:hover  { background: #444; }
     button:disabled { background: #aaa; cursor: default; }
 
+    /* ── Hint (below input, only on landing) ── */
     .hint {
       font-size: 13px;
       color: #aaa;
       margin-top: 10px;
       overflow: hidden;
-      max-height: 40px;
+      max-height: 30px;
       opacity: 1;
-      transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.4s ease;
+      transition:
+        max-height 0.55s ease,
+        opacity    0.7s ease,
+        margin     0.55s ease;
     }
     body.has-results .hint {
       max-height: 0;
@@ -132,40 +156,37 @@ SEARCH_PAGE = """<!DOCTYPE html>
       margin-top: 0;
     }
 
-    /* ── Location info bar (shown after search) ── */
+    /* ── Location info (fades in after transition) ── */
     #location-info {
-      display: flex;
-      align-items: baseline;
-      gap: 12px;
       overflow: hidden;
       max-height: 0;
       opacity: 0;
+      /* delay so it appears only after bar has settled */
+      transition:
+        max-height 0.6s ease 1.2s,
+        opacity    0.6s ease 1.2s,
+        margin     0.6s ease 1.2s;
       margin-top: 0;
-      transition: max-height 0.4s ease 0.2s, opacity 0.4s ease 0.2s, margin 0.4s ease 0.2s;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
-
     body.has-results #location-info {
-      max-height: 48px;
+      max-height: 50px;
       opacity: 1;
-      margin-top: 6px;
+      margin-top: 5px;
     }
-
     #location-address {
-      font-size: 13px;
+      font-size: 12.5px;
       color: #555;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
     #location-station {
-      font-size: 12px;
+      font-size: 11.5px;
       color: #999;
-      white-space: nowrap;
+      margin-top: 1px;
     }
 
+    /* ── Status / error (only on landing) ── */
     .status {
       font-size: 13px;
       color: #888;
@@ -177,13 +198,18 @@ SEARCH_PAGE = """<!DOCTYPE html>
 
     /* ── Chart section ── */
     #chart-section {
-      flex: 0;
-      overflow: hidden;
-      transition: flex 0.4s ease;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: var(--bar-height);
+      opacity: 0;
+      pointer-events: none;
     }
-
-    body.has-results #chart-section {
-      flex: 1;
+    #chart-section.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transition: opacity 0.35s ease;
     }
 
     #chart-frame {
@@ -209,8 +235,8 @@ SEARCH_PAGE = """<!DOCTYPE html>
       </div>
       <div class="hint">Finds the nearest NOAA tide prediction station</div>
       <div id="location-info">
-        <span id="location-address"></span>
-        <span id="location-station"></span>
+        <div id="location-address"></div>
+        <div id="location-station"></div>
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -221,12 +247,14 @@ SEARCH_PAGE = """<!DOCTYPE html>
   </div>
 
   <script>
-    const input     = document.getElementById('query');
-    const btn       = document.getElementById('btn');
-    const status    = document.getElementById('status');
-    const frame     = document.getElementById('chart-frame');
-    const addrEl    = document.getElementById('location-address');
-    const stationEl = document.getElementById('location-station');
+    const input      = document.getElementById('query');
+    const btn        = document.getElementById('btn');
+    const status     = document.getElementById('status');
+    const frame      = document.getElementById('chart-frame');
+    const addrEl     = document.getElementById('location-address');
+    const stationEl  = document.getElementById('location-station');
+    const searchSec  = document.getElementById('search-section');
+    const chartSec   = document.getElementById('chart-section');
 
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
@@ -235,8 +263,8 @@ SEARCH_PAGE = """<!DOCTYPE html>
       if (!query) return;
 
       btn.disabled = true;
-      btn.textContent = 'Generating…';
-      status.textContent = 'Geocoding location and fetching NOAA data…';
+      btn.textContent = 'Generating\u2026';
+      status.textContent = 'Geocoding location and fetching NOAA data\u2026';
       status.className = 'status';
 
       try {
@@ -251,15 +279,23 @@ SEARCH_PAGE = """<!DOCTYPE html>
           return;
         }
 
-        // Populate location info
-        addrEl.textContent    = '📍 ' + data.address;
-        stationEl.textContent = 'Station: ' + data.station;
+        // Populate location info before animating so it's ready
+        addrEl.textContent   = '📍 ' + data.address;
+        stationEl.textContent = 'Nearest station: ' + data.station;
 
-        // Load chart in iframe
+        // Point iframe at chart route
         frame.src = '/chart/' + encodeURIComponent(data.key);
 
-        // Animate: search bar slides to top, chart expands below
+        // Step 1: trigger the slide-to-top animation
         document.body.classList.add('has-results');
+
+        // Step 2: once the bar has settled, measure its final height,
+        //         set the chart top edge, then fade the chart in
+        setTimeout(() => {
+          const barH = searchSec.getBoundingClientRect().height;
+          document.documentElement.style.setProperty('--bar-height', barH + 'px');
+          chartSec.classList.add('visible');
+        }, 1350); // slightly after the 1.4s transition
 
       } catch (err) {
         status.textContent = 'Network error: ' + err.message;
