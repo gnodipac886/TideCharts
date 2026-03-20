@@ -19,6 +19,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tide Chart Search</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -32,29 +33,50 @@ SEARCH_PAGE = """<!DOCTYPE html>
       position: relative;
     }
 
-    /* ── Search section ──────────────────────────────────────── */
-    /* Starts vertically centered; transitions to top edge */
+    /* ── Map background ── */
+    #map-section {
+      position: absolute;
+      left: 0; right: 0; top: 0; bottom: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      transition: opacity 0.8s ease 0.4s;
+    }
+    body.has-results #map-section {
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Subtle white overlay so card reads clearly over the map */
+    #map-section::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.25);
+      pointer-events: none;
+      z-index: 400;
+    }
+
+    /* ── Search section ── always anchored to top edge */
     #search-section {
       position: absolute;
       left: 0;
       right: 0;
-      top: 50%;
-      transform: translateY(-50%);
+      top: 0;
       display: flex;
       justify-content: center;
-      padding: 0 24px;
+      padding: 16px 24px;
       z-index: 10;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.10);
       transition:
-        top      1.4s cubic-bezier(0.4, 0, 0.2, 1),
-        transform 1.4s cubic-bezier(0.4, 0, 0.2, 1),
-        padding  1.0s  ease,
+        padding  0.8s ease,
         background 0.8s ease,
         box-shadow 0.8s ease;
     }
 
     body.has-results #search-section {
-      top: 0;
-      transform: translateY(0);
       background: white;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       padding: 10px 20px;
@@ -62,19 +84,15 @@ SEARCH_PAGE = """<!DOCTYPE html>
 
     /* ── Card ── */
     .card {
-      background: white;
-      border-radius: 17px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
-      padding: 68px 56px 44px;
+      background: transparent;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 0;
       width: 100%;
       max-width: 720px;
       text-align: center;
       transition:
-        padding      1.0s ease,
-        border-radius 1.0s ease,
-        box-shadow   1.0s ease,
-        max-width    1.1s ease,
-        background   0.8s ease;
+        max-width    1.1s ease;
     }
 
     body.has-results .card {
@@ -87,16 +105,16 @@ SEARCH_PAGE = """<!DOCTYPE html>
       text-align: left;
     }
 
-    /* ── Title / subtitle ── */
+    /* ── Card header (title + subtitle) drops below the bar ── */
     .card-header {
       overflow: hidden;
-      max-height: 140px;
+      max-height: 100px;
       opacity: 1;
-      margin-bottom: 28px;
+      margin-bottom: 12px;
       transition:
-        max-height  1.0s ease,
-        opacity     0.7s ease,
-        margin      1.0s ease;
+        max-height  0.8s ease,
+        opacity     0.6s ease,
+        margin      0.8s ease;
     }
 
     body.has-results .card-header {
@@ -104,6 +122,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
       opacity: 0;
       margin-bottom: 0;
     }
+
 
     h1 { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
     p  { font-size: 15px; color: #666; }
@@ -150,6 +169,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-align: left;
     }
     .ac-item:last-child { border-bottom: none; }
     .ac-item:hover, .ac-item.active { background: #f5f5f5; }
@@ -247,6 +267,25 @@ SEARCH_PAGE = """<!DOCTYPE html>
     body.has-results .status { display: none; }
     .error { color: #c0392b; }
 
+    /* ── Back-to-map button (only in results view) ── */
+    #map-btn {
+      display: none;
+      padding: 8px 14px;
+      background: #f0f0f0;
+      color: #1a1a1a;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+      margin-left: 10px;
+      flex-shrink: 0;
+    }
+    #map-btn:hover { background: #e0e0e0; }
+    body.has-results #map-btn { display: block; }
+
     /* ── Chart section ── */
     #chart-section {
       position: absolute;
@@ -272,11 +311,13 @@ SEARCH_PAGE = """<!DOCTYPE html>
   </style>
 </head>
 <body>
+  <div id="map-section"></div>
+
   <div id="search-section">
     <div class="card">
       <div class="card-header">
         <h1>🌊 Tide Chart</h1>
-        <p>Search any coastal location to see low tide predictions for the year below.</p>
+        <p>Search any coastal location or click the map to see low tide predictions for the year below.</p>
       </div>
       <div class="input-row">
         <div class="autocomplete-wrapper">
@@ -287,6 +328,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
         </div>
         <input type="number" id="year-input" value="{{ year }}" min="2000" max="2100">
         <button id="btn" onclick="doSearch()">Search</button>
+        <button id="map-btn" onclick="goBackToMap()">← Map</button>
       </div>
       <div class="hint">Finds the nearest NOAA tide prediction station</div>
       <div id="location-info">
@@ -301,6 +343,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
     <iframe id="chart-frame"></iframe>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const input      = document.getElementById('query');
     const yearInput  = document.getElementById('year-input');
@@ -312,6 +355,41 @@ SEARCH_PAGE = """<!DOCTYPE html>
     const searchSec  = document.getElementById('search-section');
     const chartSec   = document.getElementById('chart-section');
     const acList     = document.getElementById('autocomplete-list');
+
+    // ── Map ──────────────────────────────────────────────────────
+    const map = L.map('map-section', {
+      zoomControl: true,
+      scrollWheelZoom: true,
+      minZoom: 2,
+    }).setView([39, -96], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+    }).addTo(map);
+
+    let mapMarker = null;
+
+    map.on('click', async (e) => {
+      const { lat, lng } = e.latlng;
+      if (mapMarker) mapMarker.remove();
+      mapMarker = L.marker([lat, lng]).addTo(map);
+      try {
+        const resp = await fetch(`/reverse-geocode?lat=${lat}&lon=${lng}`);
+        const data = await resp.json();
+        if (data.display_name) {
+          input.value = data.display_name;
+          input.focus();
+        }
+      } catch (_) {}
+    });
+
+    // ── Back to map ───────────────────────────────────────────────
+    function goBackToMap() {
+      document.body.classList.remove('has-results');
+      chartSec.classList.remove('visible');
+      frame.src = '';
+      document.documentElement.style.setProperty('--bar-height', '0px');
+    }
 
     // ── Autocomplete ──────────────────────────────────────────────
     let acDebounce = null;
@@ -429,7 +507,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
           const barH = searchSec.getBoundingClientRect().height;
           document.documentElement.style.setProperty('--bar-height', barH + 'px');
           chartSec.classList.add('visible');
-        }, 1350); // slightly after the 1.4s transition
+        }, 900);
 
       } catch (err) {
         status.textContent = 'Network error: ' + err.message;
@@ -448,13 +526,32 @@ SEARCH_PAGE = """<!DOCTYPE html>
 def index():
     return render_template_string(SEARCH_PAGE, year=m.year)
 
+@app.route('/reverse-geocode')
+def reverse_geocode():
+    lat = request.args.get('lat', '').strip()
+    lon = request.args.get('lon', '').strip()
+    if not lat or not lon:
+        return jsonify(error='Missing lat/lon'), 400
+    try:
+        params = urllib.parse.urlencode({'lat': lat, 'lon': lon, 'format': 'json', 'countrycodes': 'us'})
+        req = urllib.request.Request(
+            f'https://nominatim.openstreetmap.org/reverse?{params}',
+            headers={'User-Agent': 'tidepool2/1.0'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read())
+        return jsonify(display_name=result.get('display_name', ''))
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
 @app.route('/autocomplete')
 def autocomplete():
     q = request.args.get('q', '').strip()
     if len(q) < 3:
         return jsonify([])
     try:
-        params = urllib.parse.urlencode({'q': q, 'format': 'json', 'limit': 6, 'addressdetails': 0})
+        params = urllib.parse.urlencode({'q': q, 'format': 'json', 'limit': 6, 'addressdetails': 0, 'countrycodes': 'us'})
         req = urllib.request.Request(
             f'https://nominatim.openstreetmap.org/search?{params}',
             headers={'User-Agent': 'tidepool2/1.0'}

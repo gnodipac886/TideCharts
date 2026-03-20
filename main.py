@@ -394,6 +394,23 @@ def plotly_plot(df: pd.DataFrame, station_name: str, station_area: str) -> None:
 	# traversing through each possible label for the legend
 	shown_legends = []
 
+	# Assign fractional x positions: days with two qualifying tides get
+	# offset bars (-0.2 / +0.2); single-tide days stay at the integer day.
+	def assign_x_pos(group):
+		group = group.sort_values('low_tide_time').copy()
+		if len(group) == 2:
+			offsets = [-0.2, 0.2]
+			width = 0.35
+		else:
+			offsets = [0.0] * len(group)
+			width = 0.8
+		group['x_pos'] = [group['low_tide_time'].iloc[i].day + offsets[i]
+		                  for i in range(len(group))]
+		group['bar_width'] = width
+		return group
+
+	df = df.groupby(df['low_tide_time'].dt.date, group_keys=False).apply(assign_x_pos)
+
 	# pre-build {month: {day: emoji}} so x-axis ticks can embed emojis
 	day_emojis: dict = {}
 	for _, r in df.iterrows():
@@ -424,7 +441,7 @@ Label: {r['label']}
 
 				fig.add_trace(
 					go.Bar(
-						x=filter_df['low_tide_time'].dt.day,
+						x=filter_df['x_pos'],
 						y=filter_df['low_tide'],
 						name=f"{label}",
 						marker_color=colors,
@@ -432,6 +449,7 @@ Label: {r['label']}
 						hoverinfo='text',
 						legendgroup=f'{(row+1) * (col+1)}',
 						showlegend=show_legend,
+						width=list(filter_df['bar_width']),
 					),
 					row=row+1,
 					col=col+1,
@@ -517,20 +535,28 @@ def find_nearest_noaa_station(lat: float, lon: float) -> dict:
 	with urllib.request.urlopen(url) as resp:
 		stations = json.loads(resp.read())['stations']
 	nearest = min(stations, key=lambda s: _haversine_km(lat, lon, float(s['lat']), float(s['lng'])))
-	dist = _haversine_km(lat, lon, float(nearest['lat']), float(nearest['lng']))
-	print(f"Nearest NOAA station: {nearest['name']} ({nearest['id']}) — {dist:.1f} km away")
+	dist_km = _haversine_km(lat, lon, float(nearest['lat']), float(nearest['lng']))
+	print(f"Nearest NOAA station: {nearest['name']} ({nearest['id']}) — {dist_km:.1f} km away")
 	return {
 		'station_id': nearest['id'],
 		'station':    nearest['name'],
 		'area':       nearest.get('state', nearest['name']),
 		'lat':        float(nearest['lat']),
 		'lon':        float(nearest['lng']),
+		'dist_km':    dist_km,
 	}
 
 def search_and_plot(query: str) -> dict:
 	lat, lon, address = geocode_location(query)
 	info = find_nearest_noaa_station(lat, lon)
+	dist_miles = info['dist_km'] * 0.621371
+	if dist_miles > 100:
+		raise ValueError(
+			f"Nearest NOAA station '{info['station']}' ({info['station_id']}) is "
+			f"{dist_miles:.0f} miles away — too far to generate a reliable tide chart."
+		)
 	key = re.sub(r'[^a-zA-Z0-9]', '', info['station'])
+	info['dist_miles'] = dist_miles
 	info['query'] = query
 	station_info[key] = info
 	main(key)
@@ -543,7 +569,11 @@ def search_and_plot(query: str) -> dict:
 def main(station_name: str) -> None:
 	station_id = station_info[station_name]['station_id']
 	station_area = station_info[station_name]['area']
-	location_label = station_info[station_name].get('query', station_area)
+	query = station_info[station_name].get('query', station_name)
+	dist_miles = station_info[station_name].get('dist_miles')
+	dist_str = f', {dist_miles:.1f} mi from search location' if dist_miles is not None else ''
+	station_display = re.sub(r'(?<!^)(?=[A-Z])', ' ', station_name)
+	location_label = f"{station_display} (Station {station_id}{dist_str})"
 	lat = station_info[station_name]['lat']
 	lon = station_info[station_name]['lon']
 
