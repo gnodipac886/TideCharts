@@ -40,6 +40,16 @@ Tidepool fetches official tide prediction data from [NOAA](https://tidesandcurre
 
 ---
 
+## Screenshots
+
+### Search UI
+![Search UI](docs/screenshot_search.png)
+
+### Tide Chart (Half Moon Bay, 2026)
+![Tide Chart](docs/screenshot_chart.png)
+
+---
+
 ## Demo
 
 > **Web UI** (`server.py`) — search any coastal US location:
