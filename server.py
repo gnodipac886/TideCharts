@@ -104,6 +104,24 @@ SEARCH_PAGE = """<!DOCTYPE html>
     h1 { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
     p  { font-size: 15px; color: #666; }
 
+    /* ── Year input (matches the main search bar style) ── */
+    #year-input {
+      width: 80px;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-family: inherit;
+      color: #1a1a1a;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      outline: none;
+      text-align: center;
+      transition: border-color 0.2s;
+      -moz-appearance: textfield;
+    }
+    #year-input::-webkit-outer-spin-button,
+    #year-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #year-input:focus { border-color: #2d2d2d; }
+
     /* ── Input row ── */
     .input-row {
       display: flex;
@@ -225,12 +243,13 @@ SEARCH_PAGE = """<!DOCTYPE html>
     <div class="card">
       <div class="card-header">
         <h1>🌊 Tide Chart</h1>
-        <p>Search any coastal location to see low tide predictions for {{ year }}.</p>
+        <p>Search any coastal location to see low tide predictions for the year below.</p>
       </div>
       <div class="input-row">
         <input type="text" id="query"
                placeholder="e.g. Half Moon Bay, CA"
                autocomplete="off">
+        <input type="number" id="year-input" value="{{ year }}" min="2000" max="2100">
         <button id="btn" onclick="doSearch()">Search</button>
       </div>
       <div class="hint">Finds the nearest NOAA tide prediction station</div>
@@ -248,6 +267,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
 
   <script>
     const input      = document.getElementById('query');
+    const yearInput  = document.getElementById('year-input');
     const btn        = document.getElementById('btn');
     const status     = document.getElementById('status');
     const frame      = document.getElementById('chart-frame');
@@ -257,6 +277,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
     const chartSec   = document.getElementById('chart-section');
 
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    yearInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
     async function doSearch() {
       const query = input.value.trim();
@@ -270,6 +291,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
       try {
         const fd = new FormData();
         fd.append('query', query);
+        fd.append('year', yearInput.value);
         const resp = await fetch('/search', { method: 'POST', body: fd });
         const data = await resp.json();
 
@@ -283,8 +305,8 @@ SEARCH_PAGE = """<!DOCTYPE html>
         addrEl.textContent   = '📍 ' + data.address;
         stationEl.textContent = 'Nearest station: ' + data.station;
 
-        // Point iframe at chart route
-        frame.src = '/chart/' + encodeURIComponent(data.key);
+        // Point iframe at chart route (include year so the right file is served)
+        frame.src = '/chart/' + encodeURIComponent(data.key) + '?year=' + data.year;
 
         // Step 1: trigger the slide-to-top animation
         document.body.classList.add('has-results');
@@ -319,12 +341,21 @@ def search():
     query = request.form.get('query', '').strip()
     if not query:
         return jsonify(error='No query provided.'), 400
+    year_str = request.form.get('year', str(m.year)).strip()
     try:
+        year = int(year_str)
+        if not (2000 <= year <= 2100):
+            raise ValueError()
+    except ValueError:
+        return jsonify(error='Invalid year (must be 2000–2100).'), 400
+    try:
+        m.year = year
         result = m.search_and_plot(query)
         return jsonify(
             key=result['key'],
             address=result['address'],
             station=result['station'],
+            year=year,
         )
     except ValueError as e:
         return jsonify(error=str(e)), 404
@@ -334,7 +365,12 @@ def search():
 @app.route('/chart/<key>')
 def chart(key):
     key = re.sub(r'[^a-zA-Z0-9]', '', key)
-    path = os.path.join(os.getcwd(), f"tideplot_{m.year}_{key.lower()}.html")
+    year_str = request.args.get('year', str(m.year))
+    try:
+        year = int(year_str)
+    except ValueError:
+        year = m.year
+    path = os.path.join(os.getcwd(), f"tideplot_{year}_{key.lower()}.html")
     if not os.path.exists(path):
         return 'Chart not found.', 404
     return send_file(path)

@@ -418,7 +418,7 @@ def plotly_plot(df: pd.DataFrame, station_name: str, station_area: str) -> None:
 	)
 
 	emoji_lut = {
-		'morning' : '🐓',
+		'morning' : '💤',
 		'daytime' : '☀️',
 	}
 
@@ -567,6 +567,7 @@ def search_and_plot(query: str) -> dict:
 	lat, lon, address = geocode_location(query)
 	info = find_nearest_noaa_station(lat, lon)
 	key = re.sub(r'[^a-zA-Z0-9]', '', info['station'])
+	info['query'] = query
 	station_info[key] = info
 	main(key)
 	return {
@@ -578,6 +579,7 @@ def search_and_plot(query: str) -> dict:
 def main(station_name: str) -> None:
 	station_id = station_info[station_name]['station_id']
 	station_area = station_info[station_name]['area']
+	location_label = station_info[station_name].get('query', station_area)
 	lat = station_info[station_name]['lat']
 	lon = station_info[station_name]['lon']
 
@@ -636,7 +638,7 @@ def main(station_name: str) -> None:
 	# Save the filtered DataFrame to a new CSV file
 	df.to_csv(output_file, index=False)
 
-	plotly_plot(df, station_name, station_area)
+	plotly_plot(df, station_name, location_label)
 
 if __name__ == '__main__':
 	for key in station_info:
