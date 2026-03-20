@@ -2,6 +2,9 @@
 import os
 import re
 import threading
+import urllib.request
+import urllib.parse
+import json
 import webbrowser
 
 from flask import Flask, request, render_template_string, send_file, jsonify
@@ -60,11 +63,11 @@ SEARCH_PAGE = """<!DOCTYPE html>
     /* ── Card ── */
     .card {
       background: white;
-      border-radius: 12px;
+      border-radius: 17px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.10);
-      padding: 48px 40px 32px;
+      padding: 68px 56px 44px;
       width: 100%;
-      max-width: 520px;
+      max-width: 720px;
       text-align: center;
       transition:
         padding      1.0s ease,
@@ -80,6 +83,7 @@ SEARCH_PAGE = """<!DOCTYPE html>
       box-shadow: none;
       background: transparent;
       max-width: 100%;
+      flex: 1;
       text-align: left;
     }
 
@@ -122,14 +126,43 @@ SEARCH_PAGE = """<!DOCTYPE html>
     #year-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     #year-input:focus { border-color: #2d2d2d; }
 
+    /* ── Autocomplete dropdown ── */
+    .autocomplete-wrapper { position: relative; flex: 1; min-width: 0; }
+    #autocomplete-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: white;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      z-index: 100;
+      overflow: hidden;
+      display: none;
+    }
+    #autocomplete-list.open { display: block; }
+    .ac-item {
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #1a1a1a;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover, .ac-item.active { background: #f5f5f5; }
+
     /* ── Input row ── */
     .input-row {
       display: flex;
       gap: 10px;
+      width: 100%;
     }
 
     input[type="text"] {
-      flex: 1;
+      width: 100%;
       padding: 12px 16px;
       font-size: 15px;
       border: 1.5px solid #ddd;
@@ -246,9 +279,12 @@ SEARCH_PAGE = """<!DOCTYPE html>
         <p>Search any coastal location to see low tide predictions for the year below.</p>
       </div>
       <div class="input-row">
-        <input type="text" id="query"
-               placeholder="e.g. Half Moon Bay, CA"
-               autocomplete="off">
+        <div class="autocomplete-wrapper">
+          <input type="text" id="query"
+                 placeholder="e.g. Half Moon Bay, CA"
+                 autocomplete="off">
+          <div id="autocomplete-list"></div>
+        </div>
         <input type="number" id="year-input" value="{{ year }}" min="2000" max="2100">
         <button id="btn" onclick="doSearch()">Search</button>
       </div>
@@ -275,14 +311,90 @@ SEARCH_PAGE = """<!DOCTYPE html>
     const stationEl  = document.getElementById('location-station');
     const searchSec  = document.getElementById('search-section');
     const chartSec   = document.getElementById('chart-section');
+    const acList     = document.getElementById('autocomplete-list');
 
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    // ── Autocomplete ──────────────────────────────────────────────
+    let acDebounce = null;
+    let acActiveIdx = -1;
+
+    input.addEventListener('input', () => {
+      clearTimeout(acDebounce);
+      const q = input.value.trim();
+      if (q.length < 3) { closeAc(); return; }
+      acDebounce = setTimeout(() => fetchSuggestions(q), 300);
+    });
+
+    input.addEventListener('keydown', e => {
+      const items = acList.querySelectorAll('.ac-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        acActiveIdx = Math.min(acActiveIdx + 1, items.length - 1);
+        highlightAc(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        acActiveIdx = Math.max(acActiveIdx - 1, -1);
+        highlightAc(items);
+      } else if (e.key === 'Enter') {
+        if (acActiveIdx >= 0 && items[acActiveIdx]) {
+          items[acActiveIdx].click();
+        } else {
+          closeAc();
+          doSearch();
+        }
+      } else if (e.key === 'Escape') {
+        closeAc();
+      }
+    });
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.autocomplete-wrapper')) closeAc();
+    });
+
+    async function fetchSuggestions(q) {
+      try {
+        const resp = await fetch('/autocomplete?q=' + encodeURIComponent(q));
+        const suggestions = await resp.json();
+        renderAc(suggestions);
+      } catch (_) { closeAc(); }
+    }
+
+    function renderAc(suggestions) {
+      acList.innerHTML = '';
+      acActiveIdx = -1;
+      if (!suggestions.length) { closeAc(); return; }
+      suggestions.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'ac-item';
+        div.textContent = s;
+        div.addEventListener('mousedown', e => {
+          e.preventDefault(); // keep focus on input
+          input.value = s;
+          closeAc();
+          doSearch();
+        });
+        acList.appendChild(div);
+      });
+      acList.classList.add('open');
+    }
+
+    function highlightAc(items) {
+      items.forEach((el, i) => el.classList.toggle('active', i === acActiveIdx));
+    }
+
+    function closeAc() {
+      acList.classList.remove('open');
+      acList.innerHTML = '';
+      acActiveIdx = -1;
+    }
+
+    // ── Search ────────────────────────────────────────────────────
     yearInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
     async function doSearch() {
       const query = input.value.trim();
       if (!query) return;
 
+      closeAc();
       btn.disabled = true;
       btn.textContent = 'Generating\u2026';
       status.textContent = 'Geocoding location and fetching NOAA data\u2026';
@@ -335,6 +447,25 @@ SEARCH_PAGE = """<!DOCTYPE html>
 @app.route('/')
 def index():
     return render_template_string(SEARCH_PAGE, year=m.year)
+
+@app.route('/autocomplete')
+def autocomplete():
+    q = request.args.get('q', '').strip()
+    if len(q) < 3:
+        return jsonify([])
+    try:
+        params = urllib.parse.urlencode({'q': q, 'format': 'json', 'limit': 6, 'addressdetails': 0})
+        req = urllib.request.Request(
+            f'https://nominatim.openstreetmap.org/search?{params}',
+            headers={'User-Agent': 'tidepool2/1.0'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            results = json.loads(resp.read())
+        suggestions = [r['display_name'] for r in results]
+        return jsonify(suggestions)
+    except Exception:
+        return jsonify([])
+
 
 @app.route('/search', methods=['POST'])
 def search():
