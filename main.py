@@ -13,6 +13,10 @@ from plotly.subplots import make_subplots
 import csv
 import ephem
 import datetime
+import json
+import math
+import re
+import sys
 import pytz
 from suntime import Sun
 import calendar
@@ -528,6 +532,48 @@ Label: {r['label']}
 			post_script=_responsive_script(),
 		))
 		f.write(_build_summary_html(df, station_area))
+
+def geocode_location(query: str) -> tuple[float, float, str]:
+	from geopy.geocoders import Nominatim
+	geolocator = Nominatim(user_agent='tidepool2')
+	location = geolocator.geocode(query)
+	if not location:
+		raise ValueError(f"Could not find location: '{query}'")
+	print(f"Geocoded '{query}' → {location.address}")
+	return location.latitude, location.longitude, location.address
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+	R = 6371
+	dlat, dlon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+	a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+	return R * 2 * math.asin(math.sqrt(a))
+
+def find_nearest_noaa_station(lat: float, lon: float) -> dict:
+	url = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions'
+	with urllib.request.urlopen(url) as resp:
+		stations = json.loads(resp.read())['stations']
+	nearest = min(stations, key=lambda s: _haversine_km(lat, lon, float(s['lat']), float(s['lng'])))
+	dist = _haversine_km(lat, lon, float(nearest['lat']), float(nearest['lng']))
+	print(f"Nearest NOAA station: {nearest['name']} ({nearest['id']}) — {dist:.1f} km away")
+	return {
+		'station_id': nearest['id'],
+		'station':    nearest['name'],
+		'area':       nearest.get('state', nearest['name']),
+		'lat':        float(nearest['lat']),
+		'lon':        float(nearest['lng']),
+	}
+
+def search_and_plot(query: str) -> dict:
+	lat, lon, address = geocode_location(query)
+	info = find_nearest_noaa_station(lat, lon)
+	key = re.sub(r'[^a-zA-Z0-9]', '', info['station'])
+	station_info[key] = info
+	main(key)
+	return {
+		'key':     key,
+		'address': address,
+		'station': info['station'],
+	}
 
 def main(station_name: str) -> None:
 	station_id = station_info[station_name]['station_id']
