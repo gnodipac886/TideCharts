@@ -1,5 +1,6 @@
 .DS_Store
 *.csv
 *.txt
+!requirements.txt
 *.html
 **/__pycache__/
