@@ -10,7 +10,7 @@ import os
 import urllib.request
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import csv
+from io import StringIO
 import ephem
 import datetime
 import json
@@ -133,56 +133,20 @@ station_info = {
 }
 
 
-def strip_noaa_header(filepath: str, filename: str, outfile: str) -> None:
-	"""Strip the NOAA header lines above the first blank line, writing data to outfile."""
-	with open(os.path.join(filepath, filename), 'r') as f:
-		lines = f.readlines()
-
+def _parse_noaa_text(raw_text: str, threshold: float) -> pd.DataFrame:
+	"""Strip NOAA header, parse tab-delimited data, and filter by tide threshold."""
+	lines = raw_text.splitlines()
 	first_empty = next((i for i, line in enumerate(lines) if not line.strip()), None)
 	if first_empty is None:
-		raise ValueError(f"No empty row found in {filename}")
-
-	# +1 skips the blank line, +2 also skips the column header line that follows it
-	with open(os.path.join(filepath, outfile), 'w') as f:
-		f.writelines(lines[first_empty + 2:])
-
-	print(f"Stripped {first_empty + 2} header rows from {filename}.")
-
-
-def txt_to_csv(txt_filename, csv_filename, delimiter='\t'):
-	with open(txt_filename, 'r') as txt_file:
-		# Read the contents of the .txt file
-		lines = txt_file.readlines()
-
-	# Open the .csv file for writing
-	with open(csv_filename, 'w', newline='') as csv_file:
-		csv_writer = csv.writer(csv_file)
-
-		# Write each line of the .txt file as a row in the .csv file
-		for line in lines:
-			# Split the line into columns by tab and write to CSV
-			csv_writer.writerow(line.strip().split(delimiter))
-
-	print(f"Converted {txt_filename} to {csv_filename}")
-
-
-def filter_dates(input_file: str, threshold: float) -> pd.DataFrame:
-	# Read the CSV file into a pandas DataFrame
-	df = pd.read_csv(input_file, header=None)
+		raise ValueError("No empty row found in NOAA data")
+	data_lines = lines[first_empty + 2:]  # skip blank line + column header row
+	df = pd.read_csv(StringIO('\n'.join(data_lines)), sep='\t', header=None)
 	num_rows, num_columns = df.shape
-	print(f"Total rows: {num_rows}")
-	print(f"Total columns: {num_columns}")
-
-	df.iloc[:, 0] = df.iloc[:, 0].str[5:] # remove year prefix from date column
-	print(df)
-
-	# Keep rows where the 4th column (index 3), the tide < threshold
-	filtered_df = df[df.iloc[:, 3] <= threshold]
-	filtered_df = filtered_df.drop(df.columns[4:], axis=1)
-	print(f"lowest tide in {year} is ", df.iloc[:, 3].min(), "ft") # find the lowest tide
-
-	# show the result
-	return filtered_df
+	print(f"Total rows: {num_rows}, columns: {num_columns}")
+	df.iloc[:, 0] = df.iloc[:, 0].str[5:]  # remove year prefix from date column
+	print(f"Lowest tide: {df.iloc[:, 3].min():.2f} ft")
+	filtered = df[df.iloc[:, 3] <= threshold].drop(df.columns[4:], axis=1)
+	return filtered
 
 def get_moon_illumination_on_day(year: int, month: int, day: int):
 	"""Returns a floating-point number from 0-1. where 0=new, 0.5=full, 1=new"""
@@ -583,49 +547,26 @@ def main(station_name: str) -> None:
 	lat = station_info[station_name]['lat']
 	lon = station_info[station_name]['lon']
 
-	# setup meta vars for url
 	start_date = f'{year}0101'
 	end_date = f'{year}1231'
 	url = f'https://tidesandcurrents.noaa.gov/cgi-bin/predictiondownload.cgi?&stnid={station_id}&threshold=&thresholdDirection=&bdate={start_date}&edate={end_date}&units=standard&timezone=LST/LDT&datum=MLLW&interval=hilo&clock=12hour&type=txt&annual=false'
 	print(url)
-	# save the file downloaded from NOAA to tides.txt
-	filename = f'tides_{year}_{station_name.lower()}.txt'
-	filepath = os.getcwd()
 
-	txt_filename = f'_tmp_{station_name}.txt'
-	csv_filename = f'_tmp_{station_name}.csv'
-
-	# check if the file is already there
-	if os.path.exists(os.path.join(filepath, filename)):
-		print(f"File {filename} already exists.  Skipping download.")
+	cache_file = f'tides_{year}_{station_name.lower()}.txt'
+	if os.path.exists(cache_file):
+		print(f"Cache hit: {cache_file}")
+		with open(cache_file, 'r') as f:
+			raw_text = f.read()
 	else:
-		# download the data from NOAA
 		print('Downloading data from NOAA...')
-		print(f'url: {url}')
-		filename, _ = urllib.request.urlretrieve(url, filename)
-		print(f"Data saved to {filename}")
+		with urllib.request.urlopen(url) as resp:
+			raw_text = resp.read().decode('utf-8')
+		with open(cache_file, 'w') as f:
+			f.write(raw_text)
+		print(f"Data cached to {cache_file}")
 
-	strip_noaa_header(filepath, filename, txt_filename)
-
-	txt_to_csv(os.path.join(filepath, txt_filename), os.path.join(filepath, csv_filename), delimiter='\t')
-
-	input_file = os.path.join(filepath, csv_filename)
-	output_file = os.path.join(filepath, f'dates_low_tides_{year}_{station_name.lower()}.csv')
-
-	print("File path:", filepath)
-	if os.access(filepath, os.R_OK):
-		print("File is readable")
-	else:
-		print("File is not readable")
-	print("Only dates with tide <= ", threshold, " are left")
-
-	df = filter_dates(input_file, threshold)
-	df = df.rename(columns={
-		0: 'date',
-		1: 'day_of_week',
-		2: 'time',
-		3: 'low_tide'
-	})
+	df = _parse_noaa_text(raw_text, threshold)
+	df = df.rename(columns={0: 'date', 1: 'day_of_week', 2: 'time', 3: 'low_tide'})
 
 	collapse_to_datetime(df, year)
 	del df['date']
@@ -634,9 +575,6 @@ def main(station_name: str) -> None:
 
 	add_sun_moon_info(df, lat, lon)
 	add_date_label(df)
-
-	# Save the filtered DataFrame to a new CSV file
-	df.to_csv(output_file, index=False)
 
 	plotly_plot(df, station_name, location_label)
 
