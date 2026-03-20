@@ -295,7 +295,7 @@ function calcLayout(cols, rows) {
     const vSpacing = rows <= 4 ? 0.10 : rows <= 6 ? 0.07 : 0.05;
     const colWidth  = (1 - hSpacing  * (cols - 1)) / cols;
     const rowHeight = (1 - vSpacing * (rows - 1)) / rows;
-    const fontSize  = Math.max(9, 14 - rows);
+    const fontSize  = Math.max(14, 22 - rows);
 
     let update = { height: window.innerHeight - 20, width: window.innerWidth, autosize: false };
     let annotations = [];
@@ -399,7 +399,7 @@ def plotly_plot(df: pd.DataFrame, station_name: str, station_area: str) -> None:
 
 	color_lut = {
 		'night'  			: '#000000',  # black
-		'workday'			: '#D55E00',  # vermillion
+		'workday'			: '#CC79A7',  # reddish purple
 		'holiday'			: '#E69F00',  # orange
 		'weekend'			: '#00C853',  # vivid green
 		'before/after work'	: '#56B4E9',  # sky blue
@@ -413,8 +413,25 @@ def plotly_plot(df: pd.DataFrame, station_name: str, station_area: str) -> None:
 		vertical_spacing=0.08
 	)
 
+	emoji_lut = {
+		'morning' : '🐓',
+		'daytime' : '☀️',
+	}
+
+	def time_emoji(r) -> str:
+		if r['label'] == 'night':
+			return ''
+		return emoji_lut['morning'] if r['low_tide_time'].hour < 12 else emoji_lut['daytime']
+
 	# traversing through each possible label for the legend
 	shown_legends = []
+
+	# pre-build {month: {day: emoji}} so x-axis ticks can embed emojis
+	day_emojis: dict = {}
+	for _, r in df.iterrows():
+		m, d = r['low_tide_time'].month, r['low_tide_time'].day
+		day_emojis.setdefault(m, {})[d] = time_emoji(r)
+
 	for label in df['label'].unique():
 		for row in range(rows):
 			for col in range(cols):
@@ -444,8 +461,9 @@ Label: {r['label']}
 						name=f"{label}",
 						marker_color=colors,
 						hovertext=hovertext,
-						legendgroup = f'{(row+1) * (col+1)}',
-						showlegend = show_legend # we want a custom legend for the possible labels
+						hoverinfo='text',
+						legendgroup=f'{(row+1) * (col+1)}',
+						showlegend=show_legend,
 					),
 					row=row+1,
 					col=col+1,
@@ -454,20 +472,40 @@ Label: {r['label']}
 				if show_legend:
 					shown_legends.append(label)
 
+	# add emoji legend entries as invisible traces
+	for key, (description) in [
+		('morning', '🐓 Morning (before noon)'),
+		('daytime', '☀️ Daytime (noon and after)'),
+	]:
+		fig.add_trace(go.Scatter(
+			x=[None], y=[None],
+			mode='markers',
+			marker=dict(size=0, color='rgba(0,0,0,0)'),
+			name=description,
+			showlegend=True,
+			legendgroup='emoji',
+		), row=1, col=1)
+
 	# update axis ranges for each subplot
 	for row in range(rows):
 		for col in range(cols):
 			month = row * cols + col + 1
 			filter_df = df[df['low_tide_time'].dt.month == month]
-			x_ticks = set([1] + list(filter_df['low_tide_time'].dt.day) + [calendar.monthrange(year, month)[1]])
+			tick_vals = sorted(set([1] + list(filter_df['low_tide_time'].dt.day) + [calendar.monthrange(year, month)[1]]))
+			tick_text = [
+				f"{d}\n{day_emojis.get(month, {}).get(d, '')}" if day_emojis.get(month, {}).get(d) else str(d)
+				for d in tick_vals
+			]
 			fig.update_xaxes(
-				tickvals=list(x_ticks),
+				tickvals=tick_vals,
+				ticktext=tick_text,
+				tickangle=90,
 				range=[0, calendar.monthrange(year, month)[1]+1],
 				row=row+1,
 				col=col+1
 			)
 			fig.update_yaxes(
-				range=[min_tide - 0.1,0],
+				range=[min_tide - 0.1, 0],
 				row=row+1,
 				col=col+1
 			)
@@ -478,6 +516,7 @@ Label: {r['label']}
 		barcornerradius=15,
 		legend_tracegroupgap=0
 	)
+	fig.update_annotations(font_size=20)
 
 	output_path = f"tideplot_{year}_{station_name.lower()}.html"
 	with open(output_path, 'w') as f:
