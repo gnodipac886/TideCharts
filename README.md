@@ -1,4 +1,4 @@
-# 🌊 Tidepool
+# 🌊 TideCharts
 
 > Interactive low-tide prediction charts for coastal locations across the US
 
